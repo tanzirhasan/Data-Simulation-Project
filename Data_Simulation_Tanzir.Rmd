@@ -4,9 +4,7 @@ author: "Tanzir Hasan"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 
 **Reference Link:**
 <http://saludesa.org.ec/biblioteca/PEDIATRIA/PROCALCITONINA_MEJOR_PREDICTOR_DE_BACTEREIMA_EN_NI%C3%91OS.pdf>
