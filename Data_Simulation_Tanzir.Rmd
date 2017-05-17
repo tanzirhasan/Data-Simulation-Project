@@ -1,0 +1,336 @@
+---
+title: "Data Simulation Project: Use of Procalcitonin Assays to Predict Serious Bacterial Infection in Young Febrile Infants"
+author: "Tanzir Hasan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Reference Link:**
+<http://saludesa.org.ec/biblioteca/PEDIATRIA/PROCALCITONINA_MEJOR_PREDICTOR_DE_BACTEREIMA_EN_NI%C3%91OS.pdf>
+
+#### Introduction
+This data simulation project try to simulate the variables studied in the main article. In the main article the researchers explored the the diagnostic characteristics of procalcitonin(PCT) assay,C-reactive protein (CRP) concentration, white blood cell (WBC) count, and absolute neutrophil cell (ANC) count for detecting serious bacterial infection (SBI). 
+
+
+
+#### Study design , Setting and Participants described in paper
+
+This study is a prospective cohort study that included infants aged 7- 9 days admitted to 15 French pediatric emergency department for a period of 30 months.
+
+#### List of variables 
+- Age in days 
+- Sex 
+- Febrile family member
+- C-reactive protein(CRP)                
+- procalcitonin(PCT)        
+- WBC(white blood cell)                   
+- Temperature 
+- YOS score
+- ANC(absolute neutrophil cell)
+- diagnosis
+- infection_type
+
+``` {r}
+N= 2047 # sample size
+set.seed(123)
+# Age in days 
+# age of patients between 7 to 91 days
+age <- round(runif(N ,7,91))
+sum(age<=30)/N
+hist(age, col = "blue")
+```
+
+
+```{r}
+# Sex- male-59.5%(1218)
+sex <-as.factor(sample(c("male", "female"), N, replace=TRUE, prob=c(0.595, 0.405)))
+sum(sex=="male")/N
+table(sex)
+```
+
+
+```{r}
+#Temperature 38 and above higest 40
+Temperature <- sample(seq(38,40,0.125),N,replace=TRUE)
+hist(Temperature, col = "red")
+
+```
+
+```{r}
+# Febrile family member(27%)
+
+Febrile_family_member <- sample(c("YES", "NO"), N, replace=TRUE, prob=c(0.27, 0.73))
+```
+
+```{r}
+#PCT( procalcitonin )
+set.seed(123)
+PCT <- rnorm(N,100,70)  *.15  /100
+ind <- which (PCT<0)
+PCT[ind] <-  -1 * PCT[ind]* .1  +0.018
+mean(PCT)
+sum(PCT >=0.3)/N
+hist(PCT,breaks = 50,col="blue")
+```
+
+```{r}
+# YOS score( Yale Observation Scale ) # will be more than 10 when patient have severe infection
+YOS <- PCT * 33.33
+hist(YOS, col='red')
+sum(YOS >=10)/N
+set.seed(123)
+```
+
+```{r}
+# CRP( C-reactive protein ) cut off for 20mg/L, CRP levels may increase from less than 50 μg/l to more than 500 mg/l,
+CRP <- PCT * 66.66
+sum(CRP>=20)/N
+hist(CRP, col = "orange")
+```
+
+```{r}
+# WBC(white blood cell) >= 10,000
+set.seed(1)
+WBC <- rpois(N, lambda = 10000) # As WBC is  count data so rpois used
+hist(WBC,col="green")
+sum(WBC >=10000)/N
+```
+
+
+
+Absolute neutrophil cell count is more than 5000 when there is severe infection
+```{r}
+ANC <- rpois(N,5)*1000 
+index2 <- which(ANC ==0)
+ANC[index2] <-ANC[index2] + 1300
+hist(ANC,col = "purple")
+sum(ANC >=5000)/N
+```
+
+We are simulating the infection_type variable before diagnosis. After that we will reverse engineer the diagnosis veriable from it.
+infection_type  have three values severe bacterial infection(SBI)- count 139 ,Nondefinative severe bacterial infection(Nondef_SBI)- count 217 and non bacterial infection(No_BI)- count 1691. We are first constructing a data frame and then adding a new column.
+
+```{r}
+df <- data.frame(age, sex,Temperature, Febrile_family_member, YOS, PCT, CRP, WBC, ANC)
+df$infection_type <- factor(rep("No_BI",nrow(df)),levels = c("SBI","Nondef_SBI", "No_BI"))
+df$infection_type <-as.factor(ifelse(df$PCT >=0.3 & df$WBC >=11000 |df$CRP >=20,  "SBI", as.character(df$infection_type)))
+df$infection_type <- as.factor(ifelse(df$PCT< 0.29  & df$PCT >0.24 , "Nondef_SBI", as.character(df$infection_type)))
+table(df$infection_type)
+```
+
+```{r, message=FALSE}
+require(dplyr)
+df$diagnosis1 <-factor(rep("Non_BI",nrow(df)),levels=c("UTI","gastroenteritis", "meningitis","Bacteremia","Pneumonia","Non_BI"))
+df$diagnosis1 <-as.factor(ifelse(df$infection_type=="SBI",sample(c("UTI","gastroenteritis", "meningitis","Bacteremia"), nrow(df %>% filter(infection_type=="SBI")), replace=TRUE, prob=c(0.83, 0.02,0.06,0.09)) ,as.character(df$diagnosis1)))
+df$diagnosis1 <-as.factor(ifelse(df$infection_type=="Nondef_SBI",sample(c("UTI","Pneumonia"), nrow(df %>% filter(infection_type=="Nondef_SBI")), replace=TRUE, prob=c(0.80, 0.20)),as.character(df$diagnosis1)))
+sum(is.na(df$infection_type))
+table(df$diagnosis1)
+
+```
+
+
+##### Adding NA to WBC and CRP variables
+There will be 25 missing value in WBC
+
+```{r}
+df$WBC[sample(1:length(df$WBC),25)] <-NA
+sum(is.na(df$WBC)) # checking the number of NAs
+```
+
+Therewill be 10 missing vale in CRP
+
+```{r}
+df$CRP[sample(1:length(CRP),10)] <-NA
+sum(is.na(df$CRP)) # checking the number of NAs
+```
+
+
+#### Analysis
+
+__Making age group__
+```{r}
+df$age.level <- factor(rep("<= 30",nrow(df)), ordered = TRUE, levels = c("=< 30",">30")) 
+df$age.level[df$age <= 30] <- "=< 30"
+df$age.level[df$age >30] <- ">30"
+```
+
+```{r}
+age.groups <- table(df$age.level)
+percent.labels.age <-round(100*age.groups/sum(age.groups),1 )
+pielabels <- paste(percent.labels.age,"%",sep = "")
+pie(age.groups, main = "Pie Chart for different age groups",col= rainbow(length(age.groups)),labels = pielabels, cex= 0.8)
+legend("topright",c("Age >30","Age =< 30"),cex = 0.8, fill = rainbow(length(age.groups)))
+```
+
+
+<br>
+__Distribution of age among different infection_type group__
+<br>
+```{r, message=FALSE,warning=FALSE,echo=FALSE}
+require(ggplot2)
+require(ggthemes)
+ggplot(data= df,aes(x= infection_type,y= age)) + geom_boxplot() + labs(x="Infection Types", y="Age in days") +ggtitle("Distribution of age among different infection_type")+ theme_economist()
+```
+<br>
+<br>
+__Distribution of PCT among different infection_type group__
+<br>
+```{r,message= FALSE,warning=FALSE,echo=FALSE}
+require(ggplot2)
+require(ggthemes)
+ggplot(data= df,aes(x= infection_type,y= PCT)) + geom_boxplot() + labs(x="Infection Types", y="procalcitonin(PCT) level") +ggtitle("Distribution of PCT among different infection_type")+ theme_economist()
+```
+
+<br>
+__Distribution of WBC among different infection_type group__
+<br>
+```{r, message=FALSE,warning=FALSE,echo=FALSE}
+require(ggplot2)
+require(ggthemes)
+ggplot(data= df,aes(x= infection_type,y= WBC)) + geom_boxplot() + labs(x="Infection Types", y="White Blood Cell Count") +ggtitle("Distribution of WBC among different infection_type")+ theme_economist()
+
+```
+
+<br>
+__Distribution of CRP among different infection_type group__
+<br>
+```{r,echo=FALSE,warning=FALSE}
+ggplot(data= df,aes(x= infection_type,y= CRP)) + geom_boxplot() + labs(x="Infection Types", y="C-reactive protein") +ggtitle("Distribution of CRP among different infection_type")+ theme_economist()
+```
+
+<br>
+__Distribution of ANC among different infection_type group__
+<br>
+```{r,echo=FALSE,warning=FALSE}
+ggplot(data= df,aes(x= infection_type,y= ANC)) + geom_boxplot() + labs(x="Infection Types", y="ANC(absolute neutrophil cell)") +ggtitle("Distribution of ANC among different infection_type")+ theme_economist()
+
+```
+
+<br>
+
+##### Correlation
+```{r, message=FALSE,warning=FALSE,echo=FALSE}
+library(corrgram)
+corrgram(df, lower.panel=panel.conf, upper.panel=panel.pts, diag.panel=panel.density)
+```
+
+##### Regression
+As our response variable, infection_type has more than 2 categories
+we will be using multinomial regression
+
+```{r,message= FALSE,warning=FALSE}
+library("nnet")
+mod1 <- multinom(infection_type ~ PCT + WBC+ CRP+ YOS, data = df)
+summary(mod1)
+```
+
+```{r}
+exp(coef(mod1))
+```
+
+
+##### Odds ratios
+```{r}
+exp(coef(mod1))
+```
+
+
+
+##### Interpretation
+-  Model execution output shows some iteration history and includes the 
+   final negative log-likelihood 256.694628. This value is multiplied by
+   two as shown in the model summary as the Residual Deviance.
+
+- The summary output has a block of coefficients and another block of standard
+  errors. Each blocks has one row of values corresponding to one model equation.
+  In the block of coefficients, we see that the first row is being compared to
+  infection_type = “Nondef_SBI” to our baseline prog = “No_BI” and the second row to
+  infection_type = “SBI” to our baseline prog = “No_BI”.
+
+- A one-unit increase in WBC decrease the log odds of being in
+  Nondef_SBI vs. No_BI by 0.001128434
+
+- A one-unit increase in WBC decreases the log odds of being in
+  SBI vs. No_BI by 0.001270790
+
+- A one-unit increase in PCT increase the log odds of being in
+  Nondef_SBI vs. No_BI by 0.01143585
+
+- A one-unit increase in PCT increases the log odds of being in
+  SBI vs. No_BI by 0.23879609
+
+
+
+Calculation Z score and p-value  
+```{r}
+
+z <- summary(mod1)$coefficients/summary(mod1)$standard.errors
+z
+```
+
+
+
+```{r}
+p <- (1 - pnorm(abs(z), 0, 1))*2
+p
+```
+
+
+Above method adopted from <https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/>
+
+
+As the predictor variables in mod1 are highly corelated , we remove few of the the highly correlated.
+```{r}
+mod2 <- multinom(infection_type~ PCT+ WBC+ANC, data = df)
+summary(mod2)
+```
+
+```{r}
+exp(coef(mod2))
+```
+
+```{r}
+exp(coef(mod1))
+```
+
+```{r}
+z1 <- summary(mod2)$coefficients/summary(mod2)$standard.errors
+z1
+```
+
+```{r}
+p1 <- (1 - pnorm(abs(z1), 0, 1))*2
+p1
+```
+
+##### Fisher exact test
+In fisher test null hypothesis is that two variable are independent. So a high p value 
+ means that the two variables are likely to be independent. 
+
+
+- Age level and infectiontype
+```{r}
+fisher.test(table(df$sex,df$infection_type))
+```
+
+
+
+
+- Febrile_family_member and infection type
+```{r}
+fisher.test(table(df$Febrile_family_member,df$infection_type))
+```
+
+
+- Age level and infectiontype
+```{r}
+fisher.test(df$ age.level, df$infection_type)
+```
+
+
+### Conclusion
+
+From the above analysis we can come to a conclusion that as a predictor of severe bacterial infection procalcitonin level acts much better than other predictor variable like White Blood Count(WBC), C-reactive Protein(CRP), absolute neutrophil cell(ANC), YOS score.In our final model we see P-value is 0 for PCT. Search on internet and book reviews shows that p-value very near to 0 is sometimes given as 0 by stastical program(<https://stats.stackexchange.com/questions/15223/how-to-interpret-p-values-of-0-or-1>). So we can say in predicting severe bacterial infection and non definite severe bacterial infection PCT is a significant predictor.  Correlation test reveals that the variable YOS score, PCT and CRP are highly correlated(coef 1). So taking out any one of them increase the model performance. FIsher test shows that the infection_type are independent of sex, age level, febrile family members.
